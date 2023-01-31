@@ -1,0 +1,8 @@
+*.Rproj*
+exported_data
+*.cpg
+*.dbf
+*.prj
+*.qmd
+*.shp
+*.shx

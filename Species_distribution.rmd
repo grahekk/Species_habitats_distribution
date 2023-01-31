@@ -1,0 +1,157 @@
+---
+title: "G18_species_distribution - SDM"
+author: "Nikola Gersak"
+date: '2023-01-24'
+output: html_document
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#install.packages(c('raster', 'rgdal', 'dismo', 'rJava', 'rcpp))
+library(raster)
+library(rgdal)
+library(dismo)
+library(tidyverse)
+library(readxl)
+library(sf)
+```
+
+# SPecies and habitats distribution predictions in Adriatic sea
+
+## Data in general
+
+Data that is being modelled concerns species in the Adriatic sea. Predictions are calculated for 4 types of species: *Coralium rubrum*, *Lithophaga Lithophaga*, *Scyllarides latus*, *Centrostephanus longispinus* and 2 types of habitats: sea reefs and caves.
+
+First step is to load the data
+
+Caution: for data wrangling and manipulation I'm using dplyr package and it's *%>%* pipeline function. 
+
+```{r, data loading}
+
+paths <- list.dirs(path = getwd(), full.names = TRUE, recursive = TRUE)
+paths <- list.files(path = getwd())
+
+path_to_data <- paste0(getwd(), '/', list.files(path = getwd())[1])
+paths_data_files <- list.files(path = path_to_data, full.names = T)
+paths_data_files_names <- list.files(path = path_to_data)
+
+data <- map(setNames(paths_data_files, str_extract(paths_data_files_names, pattern = "\\d+")), function(x) read_excel(path = x, col_names = F))
+
+grebeni <- read_excel(paths_data_files[7], sheet = 3)
+splije <- read_excel(paths_data_files[7], sheet = 4)
+SciLat <- read_excel(paths_data_files[7], sheet = 5)
+CeLo <- read_excel(paths_data_files[7], sheet = 6)
+LiLi <- read_excel(paths_data_files[7], sheet = 7)
+CoRu <- read_excel(paths_data_files[7], sheet = 8)
+
+```
+
+a bit of wrangling
+
+```{r}
+
+grebeni <- grebeni %>% select(-c('Datum opažanja', Lokalitet, Napomena, 'Podatak unio')) %>% 
+  mutate(bodovi = grebeni$`Vrednovanje strukture i funkcije morskih stanišnih tipova (bodovi)`,
+         tip_vrst = grebeni$`Tipične vrste`,
+         antr_utj = grebeni$`Antropogeni utjecaj`,
+         x_cor = grebeni$`X koordinata`,
+         y_cor =  grebeni$`Y koordinata`,
+         inv_vrst = grebeni$`Invazivne vrste`,
+         het_st = grebeni$`Heterogenost stanišnog tipa`,
+         .keep = "used")
+
+
+spilje <- spilje %>% select(-c('Datum opažanja', Lokalitet, Napomena, 'Podatak unio'))
+
+```
+
+## Raster files
+
+Only two files of raster type were created and are containing data for predictions.
+
+### Sea depth
+
+Bathymetry data was obtained using the points batymethry data for Adriatic sea and interpolating it using thin plate spline regression in Saga gis (using QGIS interface).
+Process can be repeated in r, using *Tps* package, and applying it's function to *bati_hr.shp* file.
+
+### Sea habitats
+
+Data was obtained by rasterizing the official Croatian habitats map of sea benthos.
+
+Both rasters are made of pixels of 100m resolution.
+
+## shp files
+
+Vector data is more abundant and holds the information about the area where species and habitats occur as well as area where predictions of possible occurrence are made. Occurrence data is data obtained from the field inventories that were held throughout the year of 2022 and was put in the range tool to obtain the range data (see "EEA range tool"). The process of obtaining this data went in few steps:
+
+1. vector features for 10x10 and 1x1 grid are taken from WFS and are used as base layer
+2. zonal statistics for each square feature are calculated (mean and median)
+3. zonal statistics are joined by location with all the calculated ranges from the range tool
+4. no data values are added by hand in qgis to mark the locations that are definitely not places where the sea species and habitats can occur.
+
+This shp_file can now go further in model
+
+# Model and predictions
+
+To keep the things simple, 4 predictor variables were used to predict one variable. General linear model is used to describe the relationship between these variables.
+
+
+```{r, model, warning=FALSE}
+
+#loading the model input data
+predictors_10x10 <- read_sf("./data/zonal_statistics_10x10.shp") %>% as_data_frame()
+train_10x10 <- read_sf("./data/training_variables_10x10.shp") %>% as_data_frame()
+
+train <- train_10x10
+train %>% select(Code) %>% unique %>% drop_na %>% unlist -> species_habitat_codes
+grids <- c("10x10", "1x1")
+grid <- "10x10"
+
+#this for loop repeats the modelling process 6 times (=4 species, 2 habitats, needs to be repeated twice for 10x10 and 1x1 grid)
+for (i in species_habitat_codes){
+  species_habitat_code <- i
+
+  train %>% 
+    transmute(Code, 
+              fid, 
+              bati_mean, 
+              bati_media, 
+              morska_med, 
+              morska_mea, 
+              pojava) -> train_df
+  
+  #na values in the Code variable are made up values
+  train_df %>% 
+    select(-fid) %>% 
+    filter(Code == species_habitat_code || is.na(Code)) %>% 
+    select(-Code) -> train_df
+  
+  #model
+  model <- glm(formula = pojava~., train_df, family = "binomial")
+  #experimenting with variables
+  model_2 <- glm(formula = pojava~bati_mean*morska_med+bati_media+morska_mea, train_df, family = "binomial")
+  
+  #the prediction part
+  #also, I need to exclude the data that is already in predictors
+  predictors$predicted <- predict(model, newdata = predictors, subset = train_df)
+  
+  min_max_norm <- function(x) {
+      (x - min(x)) / (max(x) - min(x))
+    }
+  
+  #saving results in the same variable
+  predictors %>% mutate(pred_norm = min_max_norm(predicted),
+                        round_p1 = round(predicted),
+                        round_p2 = round(min_max_norm(predicted))) -> predictors
+  
+  #export
+  #favourable reference range
+  predictors %>% filter(pred_norm > 0.42) %>% 
+    st_write(paste0("./data/",species_habitat_code,"_",grid,"_predicted_FRR.shp"), append = F)
+  #favourable reference population
+  predictors %>% filter(round_p2 == 1) %>% 
+    st_write(paste0("./data/",species_habitat_code,"_",grid,"_predicted_FRP.shp"), append = F)
+}
+
+```
+
