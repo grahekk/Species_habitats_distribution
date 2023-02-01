@@ -102,6 +102,10 @@ To keep the things simple, 4 predictor variables were used to predict one variab
 predictors_10x10 <- read_sf("./data/zonal_statistics_10x10.shp") %>% as_data_frame()
 train_10x10 <- read_sf("./data/training_variables_10x10.shp") %>% as_data_frame()
 
+predictors_1x1 <- read_sf("./data/zonal_statistics_1x1.shp") %>% as_data_frame()
+train_1x1 <- read_sf("./data/training_variables_1x1.shp") %>% as_data_frame()
+
+
 train %>% select(Code) %>% unique %>% drop_na %>% unlist -> species_habitat_codes
 train <- train_10x10
 grid <- "10x10"
@@ -146,10 +150,10 @@ for (i in species_habitat_codes){
   #export
   #favourable reference range
   predictors %>% filter(pred_norm > 0.42) %>% 
-    st_write(paste0("./data/",species_habitat_code,"_",grid,"_predicted_FRR.shp"), append = F)
+    st_write(paste0("./exported_data/",species_habitat_code,"_",grid,"_predicted_FRR.shp"), append = F)
   #favourable reference population
   predictors %>% filter(round_p2 == 1) %>% 
-    st_write(paste0("./data/",species_habitat_code,"_",grid,"_predicted_FRP.shp"), append = F)
+    st_write(paste0("./exported_data/",species_habitat_code,"_",grid,"_predicted_FRP.shp"), append = F)
 }
 
 ```
