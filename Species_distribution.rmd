@@ -105,10 +105,10 @@ train_10x10 <- read_sf("./data/training_variables_10x10.shp") %>% as_data_frame(
 predictors_1x1 <- read_sf("./data/zonal_statistics_1x1.shp") %>% as_data_frame()
 train_1x1 <- read_sf("./data/training_variables_1x1.shp") %>% as_data_frame()
 
-
 train %>% select(Code) %>% unique %>% drop_na %>% unlist -> species_habitat_codes
+predictors <- predictors_1x1
 train <- train_10x10
-grid <- "10x10"
+grid <- "1x1"
 
 #this for loop repeats the modelling process 6 times (=4 species, 2 habitats, needs to be repeated twice for 10x10 and 1x1 grid)
 for (i in species_habitat_codes){

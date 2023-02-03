@@ -6,3 +6,5 @@ exported_data
 *.qmd
 *.shp
 *.shx
+*.Rdata
+*.Rhistory
