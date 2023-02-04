@@ -89,6 +89,24 @@ Vector data is more abundant and holds the information about the area where spec
 3. zonal statistics are joined by location with all the calculated ranges from the range tool
 4. no data values are added by hand in qgis to mark the locations that are definitely not places where the sea species and habitats can occur.
 
+```{r wfs loading}
+
+# URL of the WFS service
+wfs_10x10_url <- "pagingEnabled='true' preferCoordinatesForWfsT11='false' restrictToRequestBBOX='1' srsname='EPSG:3765' typename='dzzpnpis:hr10x10' url='http://services.bioportal.hr/wms"
+
+# URL of the WFS service
+wfs_url <- 'http://services.bioportal.hr/wms'
+wfs_request <- "request=GetFeature&service=WFS&version=2.0.0&typeName="
+wfs_layer <- "dzzpnpis:hr10x10"
+dsn <- paste0(wfs_url,"?", wfs_request, wfs_layer)
+layer <- st_read(dsn)
+
+# Plot the layer
+plot(layer)
+
+```
+
+
 This shp_file can now go further in model
 
 # Model and predictions
