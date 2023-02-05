@@ -192,23 +192,6 @@ for (i in species_habitat_codes){
   df_list[[i]] <- predictors
 }
 
-# Combine the data frames into one data frame
-df_combined <- do.call(rbind, df_list)
-
-df_combined %>% row.names() -> df_combined$rown
-df_combined %>%
-  mutate(group = floor(as.numeric(rown))) %>%
-  group_by(group) %>%
-  summarize(number = n(),
-            area = sum(st_area(df_combined$geometry))) -> df_summary
-
-# Summarize the data frame by counting the number of rows for each data frame
-df_summary <- data.frame(count = sapply(df_list, nrow))
-
-# Calculate the area of the polyggons
-polygon_areas <- sapply(df_combined$geometry, function(x) st_area(x))
-
-
 ```
 
 ## Summary
