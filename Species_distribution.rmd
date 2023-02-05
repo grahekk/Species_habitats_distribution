@@ -97,9 +97,14 @@ wfs_10x10_url <- "pagingEnabled='true' preferCoordinatesForWfsT11='false' restri
 # URL of the WFS service
 wfs_url <- 'http://services.bioportal.hr/wms'
 wfs_request <- "request=GetFeature&service=WFS&version=2.0.0&typeName="
+#load the 10x10 layer
 wfs_layer <- "dzzpnpis:hr10x10"
 dsn <- paste0(wfs_url,"?", wfs_request, wfs_layer)
-layer <- st_read(dsn)
+layer_10x10 <- st_read(dsn)
+#load the 1x1 layer
+wfs_layer <- "dzzpnpis:hr1x1"
+dsn <- paste0(wfs_url,"?", wfs_request, wfs_layer)
+layer_1x1 <- st_read(dsn)
 
 # Plot the layer
 plot(layer)
