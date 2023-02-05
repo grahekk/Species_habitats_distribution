@@ -196,7 +196,7 @@ for (i in species_habitat_codes){
 
 ## Summary
 
-Now that I've done the predictions, summary of statistics is left to do for each shapefile in folder.
+Now that I've done the predictions, summary of statistics is left to do for each shapefile in folder where they were exported.
 
 ```{r}
 
@@ -231,6 +231,12 @@ areas_summarized <- sf_df %>%
   group_by(id, dim, type, species) %>%
   summarize(total_area = sum(area_km2),
             n_feat = n())
+
+#export
+areas_summarized_without_geometry <- areas_summarized %>% select(-geometry)
+write_csv2(areas_summarized_without_geometry, "areas_summarized.csv")
+#export as shp
+areas_summarized %>% st_write("areas_sumarized.shp", append = FALSE)
 
 ```
 
