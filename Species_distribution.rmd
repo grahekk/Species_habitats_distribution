@@ -90,9 +90,6 @@ Vector data is more abundant and holds the information about the area where spec
 ```{r wfs loading, message=FALSE}
 
 # URL of the WFS service
-wfs_10x10_url <- "pagingEnabled='true' preferCoordinatesForWfsT11='false' restrictToRequestBBOX='1' srsname='EPSG:3765' typename='dzzpnpis:hr10x10' url='http://services.bioportal.hr/wms"
-
-# URL of the WFS service
 wfs_url <- 'http://services.bioportal.hr/wms'
 wfs_request <- "request=GetFeature&service=WFS&version=2.0.0&typeName="
 #load the 10x10 layer
@@ -103,9 +100,6 @@ layer_10x10 <- st_read(dsn)
 wfs_layer <- "dzzpnpis:hr1x1"
 dsn <- paste0(wfs_url,"?", wfs_request, wfs_layer)
 layer_1x1 <- st_read(dsn)
-
-# Plot the layer
-plot(layer)
 
 ```
 
@@ -125,15 +119,19 @@ To keep the things simple, 4 predictor variables were used to predict one variab
 ```{r, model, warning=FALSE}
 
 #loading the model input data
-predictors_10x10 <- read_sf("./data/zonal_statistics_10x10.shp") %>% as_data_frame()
-train_10x10 <- read_sf("./data/training_variables_10x10.shp") %>% as_data_frame()
+grid <- "10x10"
+path_zs <- paste0("./data/zonal_statistics_", grid, ".shp")
+path_tv <- paste0("./data/training_variables_", grid, ".shp")
 
-predictors_1x1 <- read_sf("./data/zonal_statistics_1x1.shp") %>% as_data_frame()
-train_1x1 <- read_sf("./data/training_variables_1x1.shp") %>% as_data_frame()
+predictors <- read_sf(path_zs) %>% 
+  mutate(x = st_coordinates(st_centroid(.))[,1],
+         y = st_coordinates(st_centroid(.))[,2]) %>% 
+  as_data_frame()
 
-predictors <- predictors_1x1
-train <- train_1x1
-grid <- "1x1"
+train <- read_sf(path_tv) %>%   
+  mutate(x = st_coordinates(st_centroid(.))[,1],
+         y = st_coordinates(st_centroid(.))[,2]) %>% 
+  as_data_frame()
 
 train %>% select(Code) %>% unique %>% drop_na %>% unlist -> species_habitat_codes
 
@@ -147,7 +145,9 @@ for (i in species_habitat_codes){
               bati_mean, 
               bati_media, 
               morska_med, 
-              morska_mea, 
+              morska_mea,
+              x,
+              y,
               pojava) -> train_df
   
   #na values in the Code variable are made up values
@@ -165,6 +165,12 @@ for (i in species_habitat_codes){
   #also, I need to exclude the data that is already in predictors
   predictors$predicted <- predict(model, newdata = predictors, subset = train_df)
   
+  # Use a threshold to restrict predictions for 1090 and 1027 to central and south Dalmatia
+  threshold <- 4928506
+  if (species_habitat_code == "1090" | species_habitat_code=="1027"){
+      predictors$predicted[predictors$y > threshold] <- 0
+  }
+  
   min_max_norm <- function(x) {
       (x - min(x)) / (max(x) - min(x))
     }
@@ -176,10 +182,10 @@ for (i in species_habitat_codes){
   
   #export
   #favourable reference range
-  predictors %>% filter(pred_norm > 0.49) %>% 
+  predictors %>% filter(pred_norm > 0.42) %>% select(-x,-y) %>% 
     st_write(paste0("./exported_data/",species_habitat_code,"_",grid,"_predicted_FRR.shp"), append = F)
   #favourable reference population
-  predictors %>% filter(round_p2 == 1) %>% 
+  predictors %>% filter(round_p2 == 1) %>% select(-x,-y) %>% 
     st_write(paste0("./exported_data/",species_habitat_code,"_",grid,"_predicted_FRP.shp"), append = F)
 }
 
