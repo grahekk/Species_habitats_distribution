@@ -8,3 +8,4 @@ exported_data
 *.shx
 *.Rdata
 *.Rhistory
+*.csv

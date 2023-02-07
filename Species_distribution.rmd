@@ -120,6 +120,7 @@ To keep the things simple, 4 predictor variables were used to predict one variab
 
 #loading the model input data
 grid <- "1x1"
+grid <- "10x10"
 path_zs <- paste0("./data/zonal_statistics_", grid, ".shp")
 path_tv <- paste0("./data/training_variables_", grid, ".shp")
 
@@ -160,15 +161,15 @@ for (i in species_habitat_codes){
   #model
   model <- glm(formula = pojava~., train_df, family = "binomial")
   #experimenting with variables
-  model_2 <- glm(formula = pojava~bati_mean*morska_med+bati_media+morska_mea, train_df, family = "binomial")
+  model_2 <- glm(formula = pojava~bati_mean*morska_med+y+bati_media+morska_mea, train_df, family = "binomial")
   
   #the prediction part
   #also, I need to exclude the data that is already in predictors
-  predictors$predicted <- predict(model, newdata = predictors, subset = train_df)
+  predictors$predicted <- predict(model_2, newdata = predictors, subset = train_df)
   
   # Use a threshold to restrict predictions for 1090 and 1027 to central and south Dalmatia
   threshold <- 4928506
-  if (species_habitat_code == "1090" | species_habitat_code=="1027"){
+  if (species_habitat_code == "1090" | species_habitat_code=="1008"){
       predictors$predicted[predictors$y > threshold] <- 0
   }
   
@@ -233,8 +234,8 @@ areas_summarized <- sf_df %>%
             n_feat = n())
 
 #export
-areas_summarized_without_geometry <- areas_summarized %>% select(-geometry)
-write_csv2(areas_summarized_without_geometry, "areas_summarized.csv")
+areas_summarized_without_geometry <- areas_summarized %>% as_data_frame %>%  select(-geometry)
+write_csv(areas_summarized_without_geometry, "areas_summarized.csv")
 #export as shp
 areas_summarized %>% st_write("areas_sumarized.shp", append = FALSE)
 
