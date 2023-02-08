@@ -112,16 +112,19 @@ layer_1x1 <- layer_1x1[layer_1x1$geometry %overlaps% habitats_map$geometry, ]
 
 2. zonal statistics for each square feature are calculated (mean and median)
 
-```{r}
-
+```{r, rasterstats}
 library(rasterStats)
 #zonal statistics for raster file
 mean_statistics <- zonal(r, grid_polygons, fun = mean)
 median_statistics <- zonal(r, grid_polygons, fun = median)
-
+#back to polygons
 grid_polygons$mean <- mean_statistics
 grid_polygons$median <- median_statistics
+```
 
+Zonal statistics for habitat maps
+
+```{r, habitats stats}
 # Zonal statistics for habitats
 grid_with_stats <- over(grid_polygons_overlap, benthos_map, fn=function(x, y) {
   # Calculate the area of the benthos habitats in each polygon
