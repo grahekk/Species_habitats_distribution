@@ -129,29 +129,63 @@ Zonal statistics for habitat maps
 ```{r, habitats stats}
 # Zonal statistics for habitats
 habitats_map <- read_sf("./data/morski_bentos.shp")
+# Convert sf object to SpatialPolygons object
+habitats_map <- habitats_map %>%
+  st_union(by = "nks_kod")
 
-predictors <- over(predictors, habitats_map, fn=function(x, y) {
-  # Calculate the area of the benthos habitats in each polygon
-  area <- sapply(unique(y$nks_kod), function(nks_kod) {
-    sum(x[y$nks_kod == nks_kod,]$area)
-  })
-  area
+predictors <- read_sf(path_zs)
+
+predictors_inersect <- st_intersection(predictors, habitats_map)
+predictors_inersect$area <- st_area(predictors_inersect) %>% as.double
+grid_polygons_overlap_area_pct <- predictors_inersect$area / as.double(st_area(predictors)) %>% as.double
+
+# create data frame with the results
+results <- data.frame(fid = predictors_inersect$fid,
+                      habitat_id = predictors_inersect$nks_kod,
+                      area = predictors_inersect$area,
+                      area_pct = grid_polygons_overlap_area_pct)
+
+# pivot the data frame to have one column for each habitat feature
+habitat_preferences <- results %>% pivot_wider(id_cols = c("fid"),
+                                         names_from = "habitat_id", 
+                                         values_from = "area_pct")
+
+df_summed <- habitat_preferences %>% mutate_all(as.numeric)
+df_summed <- habitat_preferences %>% mutate(G.3.2. = as.double(G.3.2.))
+df_summed[3,2]
+
+df_summed[] <- sapply(habitat_preferences, function(x) {
+  if (is.list(x)) unlist(x) else x
 })
+habitat_preferences
 
-# Bind the zonal statistics to the grid_polygons_overlap data frame
-grid_polygons_overlap$benthos_habitat_area <- grid_with_stats
-
-# Calculate the percentage of each benthos habitat in each polygon
-grid_polygons_overlap$benthos_habitat_percentage <-
-  grid_polygons_overlap$benthos_habitat_area / 
-  sum(grid_polygons_overlap$benthos_habitat_area) * 100
+?parse
+df_summed <- habitat_preferences %>% mutate_all(~{
+  if (length(eval(parse(text = .))) > 1) {
+    sum(unlist())
+  } else {
+    .
+  }
+})
 
 ```
 
 
 3. zonal statistics are joined by location with all the calculated ranges from the range tool
 4. no data values are added by hand in qgis to mark the locations that are definitely not places where the sea species and habitats can occur.
-5. habitat preferences for species are added
+5. habitat preferences (weights) for species are added
+
+```{r}
+# Assign weights for each species and habitat
+habitat_preferences$G.3.6.
+habitat_preferences$species_1001 <- ifelse(habitat_preferences$G.3.6. > 0 | habitat_preferences$G.4.3. > 0, 1, 0)
+habitat_preferences$species_1090 <- ifelse(habitat_preferences$G.3.6. > 0 | habitat_preferences$G.3.5. > 0, 1, 0)
+habitat_preferences$species_1008 <- ifelse(habitat_preferences$G.3.6. > 0 | habitat_preferences$G.4.3. > 0 | habitat_preferences$G.3.2. > 0 | habitat_preferences$G.4.2. > 0, 1, 0)
+habitat_preferences$species_1027 <- ifelse(habitat_preferences$G.3.6. > 0, 1, 0)
+habitat_preferences$species_8330 <- ifelse(habitat_preferences$G.3.6. > 0 | habitat_preferences$G.4.3. > 0, 1, 0)
+habitat_preferences$species_1170 <- ifelse(habitat_preferences$G.3.6. > 0 | habitat_preferences$G.3.5. > 0, 1, 0)
+
+```
 
 
 This shp_file can now go further in model
@@ -179,10 +213,8 @@ train <- read_sf(path_tv) %>%
   as_data_frame()
 
 
-
 train %>% select(Code) %>% unique %>% drop_na %>% unlist -> species_habitat_codes
 df_list <- list()
-
 
 ```
 
