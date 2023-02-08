@@ -112,6 +112,8 @@ layer_1x1 <- layer_1x1[layer_1x1$geometry %overlaps% habitats_map$geometry, ]
 
 2. zonal statistics for each square feature are calculated (mean and median)
 
+Zonal statistics for rasters
+
 ```{r, rasterstats}
 library(rasterStats)
 #zonal statistics for raster file
@@ -126,10 +128,12 @@ Zonal statistics for habitat maps
 
 ```{r, habitats stats}
 # Zonal statistics for habitats
-grid_with_stats <- over(grid_polygons_overlap, benthos_map, fn=function(x, y) {
+habitats_map <- read_sf("./data/morski_bentos.shp")
+
+predictors <- over(predictors, habitats_map, fn=function(x, y) {
   # Calculate the area of the benthos habitats in each polygon
-  area <- sapply(unique(y$habitat), function(habitat) {
-    sum(x[y$habitat == habitat,]$area)
+  area <- sapply(unique(y$nks_kod), function(nks_kod) {
+    sum(x[y$nks_kod == nks_kod,]$area)
   })
   area
 })
@@ -157,8 +161,7 @@ This shp_file can now go further in model
 To keep the things simple, 4 predictor variables were used to predict one variable. General linear model is used to describe the relationship between these variables.
 
 
-```{r, model, warning=FALSE}
-
+```{r, data for model, warning=FALSE}
 #loading the model input data
 grid <- "1x1"
 grid <- "10x10"
@@ -175,9 +178,16 @@ train <- read_sf(path_tv) %>%
          y = st_coordinates(st_centroid(.))[,2]) %>% 
   as_data_frame()
 
+
+
 train %>% select(Code) %>% unique %>% drop_na %>% unlist -> species_habitat_codes
 df_list <- list()
 
+
+```
+
+
+```{r, model, warning=FALSE}
 #this for loop repeats the modelling process 6 times (=4 species, 2 habitats, needs to be repeated twice for 10x10 and 1x1 grid)
 for (i in species_habitat_codes){
   species_habitat_code <- i
