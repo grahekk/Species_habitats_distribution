@@ -14,6 +14,7 @@ library(dismo)
 library(tidyverse)
 library(readxl)
 library(sf)
+
 ```
 
 # SPecies and habitats distribution predictions in Adriatic sea
@@ -92,21 +93,58 @@ Vector data is more abundant and holds the information about the area where spec
 # URL of the WFS service
 wfs_url <- 'http://services.bioportal.hr/wms'
 wfs_request <- "request=GetFeature&service=WFS&version=2.0.0&typeName="
+#load the sea benthos habitat map layer
+wfs_layer <- "dzzpnpis:morski_bentos"
+dsn <- paste0(wfs_url,"?", wfs_request, wfs_layer)
+habitats_map <- st_read(dsn) %>% st_make_valid()
 #load the 10x10 layer
 wfs_layer <- "dzzpnpis:hr10x10"
 dsn <- paste0(wfs_url,"?", wfs_request, wfs_layer)
-layer_10x10 <- st_read(dsn)
+layer_10x10 <- st_read(dsn) #%>% st_make_valid()
+layer_10x10 <- layer_10x10[layer_10x10$geometry %overlaps% habitats_map$geometry, ]
 #load the 1x1 layer
 wfs_layer <- "dzzpnpis:hr1x1"
 dsn <- paste0(wfs_url,"?", wfs_request, wfs_layer)
-layer_1x1 <- st_read(dsn)
+layer_1x1 <- st_read(dsn) %>% st_make_valid()
+layer_1x1 <- layer_1x1[layer_1x1$geometry %overlaps% habitats_map$geometry, ]
 
 ```
 
 2. zonal statistics for each square feature are calculated (mean and median)
+
+```{r}
+
+library(rasterStats)
+#zonal statistics for raster file
+mean_statistics <- zonal(r, grid_polygons, fun = mean)
+median_statistics <- zonal(r, grid_polygons, fun = median)
+
+grid_polygons$mean <- mean_statistics
+grid_polygons$median <- median_statistics
+
+# Zonal statistics for habitats
+grid_with_stats <- over(grid_polygons_overlap, benthos_map, fn=function(x, y) {
+  # Calculate the area of the benthos habitats in each polygon
+  area <- sapply(unique(y$habitat), function(habitat) {
+    sum(x[y$habitat == habitat,]$area)
+  })
+  area
+})
+
+# Bind the zonal statistics to the grid_polygons_overlap data frame
+grid_polygons_overlap$benthos_habitat_area <- grid_with_stats
+
+# Calculate the percentage of each benthos habitat in each polygon
+grid_polygons_overlap$benthos_habitat_percentage <-
+  grid_polygons_overlap$benthos_habitat_area / 
+  sum(grid_polygons_overlap$benthos_habitat_area) * 100
+
+```
+
+
 3. zonal statistics are joined by location with all the calculated ranges from the range tool
 4. no data values are added by hand in qgis to mark the locations that are definitely not places where the sea species and habitats can occur.
-
+5. habitat preferences for species are added
 
 
 This shp_file can now go further in model
@@ -195,7 +233,7 @@ for (i in species_habitat_codes){
 
 ```
 
-## Summary
+# Summary
 
 Now that I've done the predictions, summary of statistics is left to do for each shapefile in folder where they were exported.
 
