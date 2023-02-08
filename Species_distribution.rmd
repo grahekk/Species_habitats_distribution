@@ -124,49 +124,31 @@ grid_polygons$mean <- mean_statistics
 grid_polygons$median <- median_statistics
 ```
 
-Zonal statistics for habitat maps
+Zonal statistics for habitat maps and area percentage of each habitat in each grid cell
 
 ```{r, habitats stats}
 # Zonal statistics for habitats
 habitats_map <- read_sf("./data/morski_bentos.shp")
-# Convert sf object to SpatialPolygons object
-habitats_map <- habitats_map %>%
-  st_union(by = "nks_kod")
-
 predictors <- read_sf(path_zs)
 
 predictors_inersect <- st_intersection(predictors, habitats_map)
 predictors_inersect$area <- st_area(predictors_inersect) %>% as.double
-grid_polygons_overlap_area_pct <- predictors_inersect$area / as.double(st_area(predictors)) %>% as.double
+area_percentage <- predictors_inersect$area / as.double(st_area(predictors)) %>% as.double
 
 # create data frame with the results
 results <- data.frame(fid = predictors_inersect$fid,
                       habitat_id = predictors_inersect$nks_kod,
                       area = predictors_inersect$area,
-                      area_pct = grid_polygons_overlap_area_pct)
+                      area_percentage = area_percentage)
 
 # pivot the data frame to have one column for each habitat feature
 habitat_preferences <- results %>% pivot_wider(id_cols = c("fid"),
                                          names_from = "habitat_id", 
-                                         values_from = "area_pct")
+                                         values_from = "area_percentage")
 
-df_summed <- habitat_preferences %>% mutate_all(as.numeric)
-df_summed <- habitat_preferences %>% mutate(G.3.2. = as.double(G.3.2.))
-df_summed[3,2]
-
-df_summed[] <- sapply(habitat_preferences, function(x) {
-  if (is.list(x)) unlist(x) else x
-})
-habitat_preferences
-
-?parse
-df_summed <- habitat_preferences %>% mutate_all(~{
-  if (length(eval(parse(text = .))) > 1) {
-    sum(unlist())
-  } else {
-    .
-  }
-})
+habitat_preferences <- habitat_preferences %>% 
+  rowwise() %>% 
+  mutate_all(~round(sum(.),4))
 
 ```
 
@@ -176,14 +158,28 @@ df_summed <- habitat_preferences %>% mutate_all(~{
 5. habitat preferences (weights) for species are added
 
 ```{r}
-# Assign weights for each species and habitat
-habitat_preferences$G.3.6.
-habitat_preferences$species_1001 <- ifelse(habitat_preferences$G.3.6. > 0 | habitat_preferences$G.4.3. > 0, 1, 0)
-habitat_preferences$species_1090 <- ifelse(habitat_preferences$G.3.6. > 0 | habitat_preferences$G.3.5. > 0, 1, 0)
-habitat_preferences$species_1008 <- ifelse(habitat_preferences$G.3.6. > 0 | habitat_preferences$G.4.3. > 0 | habitat_preferences$G.3.2. > 0 | habitat_preferences$G.4.2. > 0, 1, 0)
+# Assign weights for each species and habitat differently
+habitat_preferences$species_1001 <- ifelse(habitat_preferences$G.3.6. > 0 || habitat_preferences$G.4.3. > 0, 1, 0)
+habitat_preferences$species_1090 <- ifelse(habitat_preferences$G.3.6. > 0 || habitat_preferences$G.3.5. > 0, 1, 0)
+habitat_preferences$species_1008 <- ifelse(habitat_preferences$G.3.6. > 0 || habitat_preferences$G.4.3. > 0 || habitat_preferences$G.3.2. > 0 || habitat_preferences$G.4.2. > 0, 1, 0)
 habitat_preferences$species_1027 <- ifelse(habitat_preferences$G.3.6. > 0, 1, 0)
-habitat_preferences$species_8330 <- ifelse(habitat_preferences$G.3.6. > 0 | habitat_preferences$G.4.3. > 0, 1, 0)
-habitat_preferences$species_1170 <- ifelse(habitat_preferences$G.3.6. > 0 | habitat_preferences$G.3.5. > 0, 1, 0)
+habitat_preferences$species_8330 <- ifelse(habitat_preferences$G.3.6. > 0 || habitat_preferences$G.4.3. > 0, 1, 0)
+habitat_preferences$species_1170 <- ifelse(habitat_preferences$G.3.6. > 0 || habitat_preferences$G.3.5. > 0, 1, 0)
+
+habitat_preferences$species_1001 <- habitat_preferences$G.3.6.+ habitat_preferences$G.4.3.
+habitat_preferences$species_1090 <- habitat_preferences$G.3.6.+ habitat_preferences$G.3.5.*0.5 
+habitat_preferences$species_1008 <- habitat_preferences$G.3.6. + habitat_preferences$G.4.3. + habitat_preferences$G.3.2. + habitat_preferences$G.4.2. *0.5
+habitat_preferences$species_1027 <- habitat_preferences$G.3.6.
+habitat_preferences$species_8330 <- habitat_preferences$G.3.6. + habitat_preferences$G.4.3. 
+habitat_preferences$species_1170 <- habitat_preferences$G.3.6. + habitat_preferences$G.3.5.
+
+habitat_preferences <- habitat_preferences %>%
+  mutate(species_1001 = G.3.6. + G.4.3.,
+         species_1090 = G.3.6. + 0.5 * G.3.5.,
+         species_1008 = G.3.6. + G.4.3. + G.3.2. + 0.5 * G.4.2.,
+         species_1027 = G.3.6.,
+         species_8330 = G.3.6. + G.4.3.,
+         species_1170 = G.3.6. + G.3.5.)
 
 ```
 
@@ -206,6 +202,8 @@ predictors <- read_sf(path_zs) %>%
   mutate(x = st_coordinates(st_centroid(.))[,1],
          y = st_coordinates(st_centroid(.))[,2]) %>% 
   as_data_frame()
+
+predictors %>% left_join(habitat_preferences) -> predictors
 
 train <- read_sf(path_tv) %>%   
   mutate(x = st_coordinates(st_centroid(.))[,1],
