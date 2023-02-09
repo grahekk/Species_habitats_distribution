@@ -225,16 +225,17 @@ for (i in species_habitat_codes){
   train_df %>% 
     select(-fid) %>% 
     filter(Code == species_habitat_code | is.na(Code)) %>% 
-    select(-Code) -> train_df
+    select(-Code) %>% 
+    replace(is.na(.), 0) -> train_df
   
   #model
   model <- glm(formula = pojava~., train_df, family = "binomial")
   #experimenting with variables
-  model_2 <- glm(formula = pojava~bati_mean*morska_med+y+bati_media+morska_mea, train_df, family = "binomial")
+  model_2 <- glm(formula = pojava~bati_mean:bati_media+y, train_df, family = "binomial")
   
   #the prediction part
   #also, I need to exclude the data that is already in predictors
-  predictors$predicted <- predict(model_2, newdata = predictors, subset = train_df)
+  predictors$predicted <- predict(model, newdata = predictors, subset = train_df)
   
   # Use a threshold to restrict predictions for 1090 and 1027 to central and south Dalmatia
   threshold <- 4928506
