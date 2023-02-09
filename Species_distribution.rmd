@@ -159,20 +159,6 @@ habitat_preferences <- habitat_preferences %>%
 
 ```{r}
 # Assign weights for each species and habitat differently
-habitat_preferences$species_1001 <- ifelse(habitat_preferences$G.3.6. > 0 || habitat_preferences$G.4.3. > 0, 1, 0)
-habitat_preferences$species_1090 <- ifelse(habitat_preferences$G.3.6. > 0 || habitat_preferences$G.3.5. > 0, 1, 0)
-habitat_preferences$species_1008 <- ifelse(habitat_preferences$G.3.6. > 0 || habitat_preferences$G.4.3. > 0 || habitat_preferences$G.3.2. > 0 || habitat_preferences$G.4.2. > 0, 1, 0)
-habitat_preferences$species_1027 <- ifelse(habitat_preferences$G.3.6. > 0, 1, 0)
-habitat_preferences$species_8330 <- ifelse(habitat_preferences$G.3.6. > 0 || habitat_preferences$G.4.3. > 0, 1, 0)
-habitat_preferences$species_1170 <- ifelse(habitat_preferences$G.3.6. > 0 || habitat_preferences$G.3.5. > 0, 1, 0)
-
-habitat_preferences$species_1001 <- habitat_preferences$G.3.6.+ habitat_preferences$G.4.3.
-habitat_preferences$species_1090 <- habitat_preferences$G.3.6.+ habitat_preferences$G.3.5.*0.5 
-habitat_preferences$species_1008 <- habitat_preferences$G.3.6. + habitat_preferences$G.4.3. + habitat_preferences$G.3.2. + habitat_preferences$G.4.2. *0.5
-habitat_preferences$species_1027 <- habitat_preferences$G.3.6.
-habitat_preferences$species_8330 <- habitat_preferences$G.3.6. + habitat_preferences$G.4.3. 
-habitat_preferences$species_1170 <- habitat_preferences$G.3.6. + habitat_preferences$G.3.5.
-
 habitat_preferences <- habitat_preferences %>%
   mutate(species_1001 = G.3.6. + G.4.3.,
          species_1090 = G.3.6. + 0.5 * G.3.5.,
@@ -180,6 +166,10 @@ habitat_preferences <- habitat_preferences %>%
          species_1027 = G.3.6.,
          species_8330 = G.3.6. + G.4.3.,
          species_1170 = G.3.6. + G.3.5.)
+
+#assign  bathymetry preferences
+habitat_preferences$bathymetry_preferred <- ifelse(df$bathymetry >= 40 & df$bathymetry <= 100, 1, 0)
+
 
 ```
 
@@ -210,6 +200,8 @@ train <- read_sf(path_tv) %>%
          y = st_coordinates(st_centroid(.))[,2]) %>% 
   as_data_frame()
 
+train %>% left_join(habitat_preferences) %>% 
+  fill(G.3.2.:species_1170, 0, .direction = "down") -> train
 
 train %>% select(Code) %>% unique %>% drop_na %>% unlist -> species_habitat_codes
 df_list <- list()
@@ -222,16 +214,12 @@ df_list <- list()
 for (i in species_habitat_codes){
   species_habitat_code <- i
 
-  train %>% 
-    transmute(Code, 
-              fid, 
-              bati_mean, 
-              bati_media, 
-              morska_med, 
-              morska_mea,
-              x,
-              y,
-              pojava) -> train_df
+  train %>% select(fid, matches(species_habitat_code)) -> train_species
+  train %>% select(-starts_with("species")) -> train_df
+  #unique at the end is needed, otherwise it gives me "double column"
+  train_df %>% left_join(train_species, by = "fid") %>% unique -> train_df
+  
+  train_df %>% select(-cellcode, -x, -morska_mea, - morska_med, -layer, -path, -geometry) -> train_df
   
   #na values in the Code variable are made up values
   train_df %>% 
