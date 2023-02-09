@@ -161,14 +161,26 @@ habitat_preferences <- habitat_preferences %>%
 # Assign weights for each species and habitat differently
 habitat_preferences <- habitat_preferences %>%
   mutate(species_1001 = G.3.6. + G.4.3.,
-         species_1090 = G.3.6. + 0.5 * G.3.5.,
-         species_1008 = G.3.6. + G.4.3. + G.3.2. + 0.5 * G.4.2.,
+         species_1090 = G.3.6. + 0.5 * G.3.5. + G.4.3.,
+         species_1008 = G.3.6. + G.4.3. + G.3.2. + G.4.2.,
          species_1027 = G.3.6.,
          species_8330 = G.3.6. + G.4.3.,
-         species_1170 = G.3.6. + G.3.5.)
+         species_1170 = G.3.6. + G.3.5. + G.4.3.)
+
+#weights of 0 and 1
+habitat_preferences$habitat_preferences_species_1001 <- ifelse(habitat_preferences$G.3.6. > 0 || habitat_preferences$G.4.3. > 0, 1, 0)
+habitat_preferences$habitat_preferences_1090 <- ifelse(habitat_preferences$G.3.6. > 0 || habitat_preferences$G.3.5. > 0, 1, 0)
+habitat_preferences$habitat_preferences_1008 <- ifelse(habitat_preferences$G.3.6. > 0 || habitat_preferences$G.4.3. > 0 || habitat_preferences$G.3.2. > 0 || habitat_preferences$G.4.2. > 0, 1, 0)
+habitat_preferences$habitat_preferences_1027 <- ifelse(habitat_preferences$G.3.6. > 0, 1, 0)
+habitat_preferences$habitat_preferences_8330 <- ifelse(habitat_preferences$G.3.6. > 0 || habitat_preferences$G.4.3. > 0, 1, 0)
+habitat_preferences$habitat_preferences_1170 <- ifelse(habitat_preferences$G.3.6. > 0 || habitat_preferences$G.3.5. > 0, 1, 0)
+
 
 #assign  bathymetry preferences
-habitat_preferences$bathymetry_preferred <- ifelse(df$bathymetry >= 40 & df$bathymetry <= 100, 1, 0)
+habitat_preferences$bathymetry_preferred_1001 <- ifelse(predictors$bati_mean <= -30 & predictors$bati_mean >= -200, 1, 0)
+habitat_preferences$bathymetry_preferred_1008 <- ifelse(predictors$bati_mean <= -40 & predictors$bati_mean >= -200, 1, 0)
+habitat_preferences$bathymetry_preferred_1027 <- ifelse(predictors$bati_mean <= -1 & predictors$bati_mean >= -20, 1, 0)
+habitat_preferences$bathymetry_preferred_1090 <- ifelse(predictors$bati_mean <= -4 & predictors$bati_mean >= -100, 1, 0)
 
 
 ```
@@ -220,7 +232,7 @@ for (i in species_habitat_codes){
   train_df %>% left_join(train_species, by = "fid") %>% unique -> train_df
   
   train_df %>% select(-cellcode, -x, -morska_mea, - morska_med, -layer, -path, -geometry) -> train_df
-  
+  train_df %>% select(species_1090) %>% min_max_norm()
   #na values in the Code variable are made up values
   train_df %>% 
     select(-fid) %>% 
@@ -256,9 +268,10 @@ for (i in species_habitat_codes){
   #favourable reference range
   predictors %>% filter(pred_norm > 0.42) %>% select(-x,-y) %>% 
     st_write(paste0("./exported_data/",species_habitat_code,"_",grid,"_predicted_FRR.shp"), append = F)
-  #favourable reference population
+  #favourable reference population or area
+  FRV <- ifelse(species_habitat_code == "8330" | species_habitat_code == "1170", FRV <- "FRA", FRV <- "FRP")
   predictors %>% filter(round_p2 == 1) %>% select(-x,-y) %>% 
-    st_write(paste0("./exported_data/",species_habitat_code,"_",grid,"_predicted_FRP.shp"), append = F)
+    st_write(paste0("./exported_data/",species_habitat_code,"_",grid,"_predicted_",FRV,".shp"), append = F)
   
   df_list[[i]] <- predictors
 }
