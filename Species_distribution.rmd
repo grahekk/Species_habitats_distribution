@@ -327,14 +327,14 @@ for (i in species_habitat_codes){
 
   if (species_habitat_code == "1090" | species_habitat_code=="1008"){
     predictors %>% 
-      filter(pred_norm > 0.6) %>% 
+      filter(pred_norm > 0.2) %>% 
       select(-x,-y) %>% 
       st_write(paste0("./exported_data/",species_habitat_code,"_",grid,"_predicted_FRR.shp"), append = F)
     #favourable reference population or area
     FRV <- ifelse(species_habitat_code == "8330" | species_habitat_code == "1170", FRV <- "FRA", FRV <- "FRP")
     
     predictors %>% 
-      filter(pred_norm > 0.7) %>% 
+      filter(pred_norm > 0.4) %>% 
       select(-x,-y) %>% 
       st_write(paste0("./exported_data/",species_habitat_code,"_",grid,"_predicted_",FRV,".shp"), append = F)
   }
